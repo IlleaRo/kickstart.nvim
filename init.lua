@@ -91,7 +91,7 @@ vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 
 -- [[ Setting options ]]
 -- See `:help vim.o`
@@ -218,6 +218,27 @@ vim.api.nvim_create_autocmd('TextYankPost', {
     vim.hl.on_yank()
   end,
 })
+
+local function format_hunks()
+  local hunks = require('gitsigns').get_hunks()
+
+  if hunks == nil then
+    return
+  end
+
+  local format = require('conform').format
+  for i = #hunks, 1, -1 do
+    local hunk = hunks[i]
+    if hunk ~= nil and hunk.type ~= 'delete' then
+      local start = hunk.added.start
+      local last = start + hunk.added.count
+      -- nvim_buf_get_lines uses zero-based indexing -> subtract from last
+      local last_hunk_line = vim.api.nvim_buf_get_lines(0, last - 2, last - 1, true)[1]
+      local range = { start = { start, 0 }, ['end'] = { last - 1, last_hunk_line:len() } }
+      format { range = range }
+    end
+  end
+end
 
 -- [[ Install `lazy.nvim` plugin manager ]]
 --    See `:help lazy.nvim.txt` or https://github.com/folke/lazy.nvim for more info
@@ -647,34 +668,15 @@ require('lazy').setup({
         end,
       })
 
-      -- Diagnostic Config
-      -- See :help vim.diagnostic.Opts
-      vim.diagnostic.config {
-        severity_sort = true,
-        float = { border = 'rounded', source = 'if_many' },
-        underline = { severity = vim.diagnostic.severity.ERROR },
-        signs = vim.g.have_nerd_font and {
-          text = {
-            [vim.diagnostic.severity.ERROR] = '󰅚 ',
-            [vim.diagnostic.severity.WARN] = '󰀪 ',
-            [vim.diagnostic.severity.INFO] = '󰋽 ',
-            [vim.diagnostic.severity.HINT] = '󰌶 ',
-          },
-        } or {},
-        virtual_text = {
-          source = 'if_many',
-          spacing = 2,
-          format = function(diagnostic)
-            local diagnostic_message = {
-              [vim.diagnostic.severity.ERROR] = diagnostic.message,
-              [vim.diagnostic.severity.WARN] = diagnostic.message,
-              [vim.diagnostic.severity.INFO] = diagnostic.message,
-              [vim.diagnostic.severity.HINT] = diagnostic.message,
-            }
-            return diagnostic_message[diagnostic.severity]
-          end,
-        },
-      }
+  -- Change diagnostic symbols in the sign column (gutter)
+  if vim.g.have_nerd_font then
+    local signs = { ERROR = '', WARN = '', INFO = '', HINT = '' }
+    local diagnostic_signs = {}
+    for type, icon in pairs(signs) do
+      diagnostic_signs[vim.diagnostic.severity[type]] = icon
+    end
+    vim.diagnostic.config { signs = { text = diagnostic_signs } }
+  end
 
       -- LSP servers and clients are able to communicate to each other what features they support.
       --  By default, Neovim doesn't support everything that is in the LSP specification.
@@ -737,6 +739,7 @@ require('lazy').setup({
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
         'stylua', -- Used to format Lua code
+        -- 'clang-format',
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -777,6 +780,8 @@ require('lazy').setup({
         -- Disable "format_on_save lsp_fallback" for languages that don't
         -- have a well standardized coding style. You can add additional
         -- languages here or re-enable it for the disabled ones.
+        -- call format_hunks for format only updated lines
+
         local disable_filetypes = { c = true, cpp = true }
         if disable_filetypes[vim.bo[bufnr].filetype] then
           return nil
@@ -789,6 +794,9 @@ require('lazy').setup({
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
+        -- c = { 'clang-format' },
+        -- cpp = { 'clang-format' },
+        --- objc = { 'clang-format' },
         -- Conform can also run multiple formatters sequentially
         -- python = { "isort", "black" },
         --
@@ -908,6 +916,10 @@ require('lazy').setup({
       require('gruvbox').setup {
         overrides = {
           SignColumn = { bg = '#282828' },
+          DiagnosticSignError = { bg = '#282828' },
+          DiagnosticSignWarn = { bg = '#282828' },
+          DiagnosticSignInfo = { bg = '#282828' },
+          DiagnosticSignHint = { bg = '#282828' },
         },
         dim_inactive = false,
         transparent_mode = false,
@@ -1002,8 +1014,8 @@ require('lazy').setup({
   -- require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
   -- require 'kickstart.plugins.autopairs',
-  -- require 'kickstart.plugins.neo-tree',
-  -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
+  require 'kickstart.plugins.neo-tree',
+  require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
