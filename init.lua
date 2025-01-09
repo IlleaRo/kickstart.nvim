@@ -220,24 +220,48 @@ vim.api.nvim_create_autocmd('TextYankPost', {
 })
 
 local function format_hunks()
-  local hunks = require('gitsigns').get_hunks()
+local ignore_filetypes = { "lua" }
+  if vim.tbl_contains(ignore_filetypes, vim.bo.filetype) then
+    vim.notify("range formatting for " .. vim.bo.filetype .. " not working properly.")
+    return
+  end
 
+  local hunks = require("gitsigns").get_hunks()
   if hunks == nil then
     return
   end
 
-  local format = require('conform').format
-  for i = #hunks, 1, -1 do
-    local hunk = hunks[i]
-    if hunk ~= nil and hunk.type ~= 'delete' then
+  local format = require("conform").format
+
+  local function format_range()
+    if next(hunks) == nil then
+      vim.notify("done formatting git hunks", "info", { title = "formatting" })
+      -- return
+    end
+
+    local hunk = nil
+    local first = true
+    while next(hunks) ~= nil and (first or hunk == nil or hunk.type == "delete") do
+      hunk = table.remove(hunks)
+      first = false
+    end
+
+    if hunk ~= nil and hunk.type ~= "delete" then
+      vim.notify("iteration...", "info", { title = "formatting" })
       local start = hunk.added.start
       local last = start + hunk.added.count
       -- nvim_buf_get_lines uses zero-based indexing -> subtract from last
       local last_hunk_line = vim.api.nvim_buf_get_lines(0, last - 2, last - 1, true)[1]
-      local range = { start = { start, 0 }, ['end'] = { last - 1, last_hunk_line:len() } }
-      format { range = range }
+      local range = { start = { start, 0 }, ["end"] = { last - 1, last_hunk_line:len() } }
+      format({ range = range, async = true, lsp_fallback = true }, function()
+        vim.defer_fn(function()
+          format_range()
+        end, 1)
+      end)
     end
   end
+
+  format_range()
 end
 
 -- [[ Install `lazy.nvim` plugin manager ]]
@@ -668,15 +692,15 @@ require('lazy').setup({
         end,
       })
 
-  -- Change diagnostic symbols in the sign column (gutter)
-  if vim.g.have_nerd_font then
-    local signs = { ERROR = '', WARN = '', INFO = '', HINT = '' }
-    local diagnostic_signs = {}
-    for type, icon in pairs(signs) do
-      diagnostic_signs[vim.diagnostic.severity[type]] = icon
-    end
-    vim.diagnostic.config { signs = { text = diagnostic_signs } }
-  end
+      -- Change diagnostic symbols in the sign column (gutter)
+      if vim.g.have_nerd_font then
+        local signs = { ERROR = '', WARN = '', INFO = '', HINT = '' }
+        local diagnostic_signs = {}
+        for type, icon in pairs(signs) do
+          diagnostic_signs[vim.diagnostic.severity[type]] = icon
+        end
+        vim.diagnostic.config { signs = { text = diagnostic_signs } }
+      end
 
       -- LSP servers and clients are able to communicate to each other what features they support.
       --  By default, Neovim doesn't support everything that is in the LSP specification.
@@ -694,7 +718,7 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        -- clangd = {},
+        clangd = {},
         -- gopls = {},
         -- pyright = {},
         -- rust_analyzer = {},
@@ -739,7 +763,7 @@ require('lazy').setup({
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
         'stylua', -- Used to format Lua code
-        -- 'clang-format',
+        'clang-format',
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -776,26 +800,13 @@ require('lazy').setup({
     },
     opts = {
       notify_on_error = false,
-      format_on_save = function(bufnr)
-        -- Disable "format_on_save lsp_fallback" for languages that don't
-        -- have a well standardized coding style. You can add additional
-        -- languages here or re-enable it for the disabled ones.
-        -- call format_hunks for format only updated lines
-
-        local disable_filetypes = { c = true, cpp = true }
-        if disable_filetypes[vim.bo[bufnr].filetype] then
-          return nil
-        else
-          return {
-            timeout_ms = 500,
-            lsp_format = 'fallback',
-          }
-        end
+      format_on_save = function()
+        format_hunks()
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
-        -- c = { 'clang-format' },
-        -- cpp = { 'clang-format' },
+        c = { 'clang-format' },
+        cpp = { 'clang-format' },
         --- objc = { 'clang-format' },
         -- Conform can also run multiple formatters sequentially
         -- python = { "isort", "black" },
