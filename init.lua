@@ -220,39 +220,39 @@ vim.api.nvim_create_autocmd('TextYankPost', {
 })
 
 local function format_hunks()
-local ignore_filetypes = { "lua" }
+  local ignore_filetypes = { 'lua' }
   if vim.tbl_contains(ignore_filetypes, vim.bo.filetype) then
-    vim.notify("range formatting for " .. vim.bo.filetype .. " not working properly.")
+    vim.notify('range formatting for ' .. vim.bo.filetype .. ' not working properly.')
     return
   end
 
-  local hunks = require("gitsigns").get_hunks()
+  local hunks = require('gitsigns').get_hunks()
   if hunks == nil then
     return
   end
 
-  local format = require("conform").format
+  local format = require('conform').format
 
   local function format_range()
     if next(hunks) == nil then
-      vim.notify("done formatting git hunks", "info", { title = "formatting" })
+      vim.notify('done formatting git hunks', 'info', { title = 'formatting' })
       -- return
     end
 
     local hunk = nil
     local first = true
-    while next(hunks) ~= nil and (first or hunk == nil or hunk.type == "delete") do
+    while next(hunks) ~= nil and (first or hunk == nil or hunk.type == 'delete') do
       hunk = table.remove(hunks)
       first = false
     end
 
-    if hunk ~= nil and hunk.type ~= "delete" then
-      vim.notify("iteration...", "info", { title = "formatting" })
+    if hunk ~= nil and hunk.type ~= 'delete' then
+      vim.notify('iteration...', 'info', { title = 'formatting' })
       local start = hunk.added.start
       local last = start + hunk.added.count
       -- nvim_buf_get_lines uses zero-based indexing -> subtract from last
       local last_hunk_line = vim.api.nvim_buf_get_lines(0, last - 2, last - 1, true)[1]
-      local range = { start = { start, 0 }, ["end"] = { last - 1, last_hunk_line:len() } }
+      local range = { start = { start, 0 }, ['end'] = { last - 1, last_hunk_line:len() } }
       format({ range = range, async = true, lsp_fallback = true }, function()
         vim.defer_fn(function()
           format_range()
@@ -473,19 +473,25 @@ require('lazy').setup({
         -- You can put your default mappings / updates / etc. in here
         --  All the info you're looking for is in `:help telescope.setup()`
         --
-        -- defaults = {
-        --   mappings = {
-        --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
-        --   },
-        -- },
-        -- pickers = {}
+        defaults = {
+          layout_config = {
+            vertical = { width = 0.8 },
+          },
+          layout_strategy = "vertical"
+          --   mappings = {
+          --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
+          --   },
+        },
+        pickers = {
+
+        },
         extensions = {
           ['ui-select'] = {
             require('telescope.themes').get_dropdown(),
           },
         },
       }
-      require('bufferline').setup{}
+      require('bufferline').setup {}
 
       -- Enable Telescope extensions if they are installed
       pcall(require('telescope').load_extension, 'fzf')
@@ -719,7 +725,7 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        clangd = {},
+        -- clangd = {},
         -- gopls = {},
         -- pyright = {},
         -- rust_analyzer = {},
